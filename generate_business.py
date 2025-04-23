@@ -4,89 +4,100 @@ import json
 import datetime
 import requests
 
-USED_FILE = "used_business_terms.json"
+USED_TOPICS_FILE = "used_topics.json"
 POST_DIR = "_posts"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-def load_used_terms():
-    if not os.path.exists(USED_FILE):
+def load_used_topics():
+    if not os.path.exists(USED_TOPICS_FILE):
         return []
-    with open(USED_FILE, "r", encoding="utf-8") as f:
+    with open(USED_TOPICS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_used_terms(terms):
-    with open(USED_FILE, "w", encoding="utf-8") as f:
-        json.dump(terms, f, ensure_ascii=False, indent=2)
+def save_used_topics(topics):
+    with open(USED_TOPICS_FILE, "w", encoding="utf-8") as f:
+        json.dump(topics, f, indent=2, ensure_ascii=False)
 
-def get_business_article(api_key, used_terms):
+def get_topic_article(api_key, used_topics):
     prompt = f"""
-以下の条件に従って、ビジネス用語（PDCA, SWOT分析, 4Pなど）をランダムに1つ選び、
-その内容についてMarkdownブログ記事として出力してください。
-すでに使った用語は: {", ".join(used_terms[-20:]) if used_terms else "なし"}
+次のルールに従って、ビジネス用語を1つランダムに選び、Markdown形式のブログ記事として出力してください。
 
-条件:
-- 選んだ用語はタイトルの冒頭に記載（例: "# PDCAとは何か？"）
-- 同じ用語は選ばないこと
-- 構成は以下の見出しを含むこと
-  - 用語の定義
-  - 活用方法と具体例
-  - メリットとデメリット
-  - 図解や表があれば含める
-  - 関連用語との違い
-  - 実務で使う際のポイント
+# 条件
+- 使用済みトピック（{', '.join(used_topics[-20:]) if used_topics else 'なし'}）は絶対に使用しないこと
+- 重複のないようランダム性を持たせる
 - 各セクションは200字以上
-- 全体で3000字以上
-- コードブロック、表、図解風、リンクなどMarkdown記法を活用すること
+- 総文字数は3000字以上
+- 表、図、コード、リンクを含めると尚良し
+- Markdown形式
+- 最初の行に「# 用語名 - 概要」として明記
+- 出力全体はMarkdown文書として完結すること
+
+# 構成：
+1. 用語と概要（タイトル）
+2. 背景と目的
+3. 活用方法（できれば図解・表を含めて）
+4. メリット・デメリット
+5. 他手法との違い
+6. 企業導入事例（仮想でもよいが現実味のあるもの）
+7. よくある誤解
+8. 成功のコツ
+9. 今後の展望
+10. 関連リンク（可能であれば）
+
 """
 
-    headers = { "Content-Type": "application/json" }
-    params = { "key": api_key }
-    body = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
+    headers = {"Content-Type": "application/json"}
+    params = {"key": api_key}
+    body = {"contents": [{"parts": [{"text": prompt}]}]}
 
     res = requests.post(API_URL, headers=headers, params=params, json=body)
     if res.status_code != 200:
-        raise Exception("Gemini API Error:", res.text)
-
+        raise Exception(f"Gemini API error: {res.status_code} - {res.text}")
     data = res.json()
-    return data['candidates'][0]['content']['parts'][0]['text']
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("⚠️ Gemini response parse error:", e)
+        return None
 
-def extract_term(content):
+def extract_topic(content):
     import re
-    match = re.search(r"#\s*(.+?)とは", content)
-    return match.group(1).strip() if match else None
+    match = re.search(r"# (.+?) - ", content)
+    return match.group(1) if match else None
 
-def save_post(content, term):
+def sanitize_filename(name):
+    import re
+    return re.sub(r'[\/:*?"<>|]', '', name)
+
+def save_post(content, topic):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    filename = f"{POST_DIR}/{today}-{term.lower().replace(' ', '-')}.md"
+    filename = f"{POST_DIR}/{today}-{sanitize_filename(topic)}.md"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
 
 def generate_post():
-    print("🚀 Business Blog Generator 起動")
     os.makedirs(POST_DIR, exist_ok=True)
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise EnvironmentError("GEMINI_API_KEY not set")
 
-    used = load_used_terms()
-    for i in range(10):
-        content = get_business_article(api_key, used)
-        print("📦 Gemini応答内容取得完了")
-        term = extract_term(content)
-        if term and term not in used:
-            print(f"✅ 新しい用語を生成: {term}")
-            save_post(content, term)
-            used.append(term)
-            save_used_terms(used)
+    used_topics = load_used_topics()
+    for attempt in range(5):
+        print(f"🚀 試行 {attempt + 1}")
+        content = get_topic_article(api_key, used_topics)
+        if not content:
+            print("⚠️ 応答が空、再試行")
+            continue
+        topic = extract_topic(content)
+        print(f"📦 トピック候補:", topic)
+        if topic and topic not in used_topics:
+            save_post(content, topic)
+            used_topics.append(topic)
+            save_used_topics(used_topics)
+            print("✅ 保存完了")
             return
-        else:
-            print(f"⚠️ 用語重複または抽出失敗: {term} ({i+1}/10)")
-
-    raise Exception("❌ 有効な用語を取得できませんでした")
+        print(f"⚠️ 重複または抽出失敗: {topic}")
+    raise Exception("❌ トピック取得に失敗しました")
 
 if __name__ == "__main__":
     generate_post()
