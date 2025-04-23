@@ -1,35 +1,35 @@
-name: Daily Business Post
+
+name: Auto Generate Business Blog (Gemini)
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 */6 * * *'  # 毎6時間実行
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
+  generate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: pip install openai --upgrade
+      - name: Install dependencies
+        run: pip install requests
 
-    - name: Generate Article
-      run: |
-        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python3 generate_business.py
+      - name: Generate blog post with Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python3 generate_business_gemini.py
 
-    - name: Commit and Push
-      run: |
-        git config --global user.email "bot@example.com"
-        git config --global user.name "GitHub Actions"
-        git add _posts/
-        git commit -m "Add daily business blog post"
-        git push
+      - name: Commit and push changes
+        run: |
+          git config --global user.email "bot@example.com"
+          git config --global user.name "auto-bot"
+          git add _posts/*.md
+          git commit -m "🔄 Auto-generated new business blog post" || echo "No changes to commit"
+          git push
