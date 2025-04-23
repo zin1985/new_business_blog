@@ -1,0 +1,3 @@
+title: ビジネス図解ブログ
+markdown: kramdown
+permalink: /:year/:month/:day/:title.html
