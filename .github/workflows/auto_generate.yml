@@ -3,7 +3,7 @@ name: Auto Generate Business Blog (Gemini)
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # 毎6時間実行
+    - cron: '*/5 * * * *'  # 5分毎実行
   workflow_dispatch:
 
 jobs:
