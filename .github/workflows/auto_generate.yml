@@ -2,7 +2,7 @@ name: Daily Business Post
 
 on:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
