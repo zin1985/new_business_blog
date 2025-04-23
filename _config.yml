@@ -1,3 +1,8 @@
-title: ビジネス図解ブログ
-markdown: kramdown
-permalink: /:year/:month/:day/:title.html
+
+title: ビジネス分析ブログ
+description: PDCA、SWOT、4Pなどの手法を図解付きで解説
+baseurl: "/new_business_blog"
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
